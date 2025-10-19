@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Custom scrollbar for a sleeker look */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            /* A vibrant, cosmic background */
+            background: #0f0c29;
+            background: -webkit-linear-gradient(to right, #24243e, #302b63, #0f0c29);
+            background: linear-gradient(to right, #24243e, #302b63, #0f0c29);
+        }
+        
+        /* The main chat container with the glass effect */
+        .glass-container {
+            background: rgba(255, 255, 255, 0.05);
+            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Styling for the loading indicator */
+        .typing-indicator span {
+            height: 8px;
+            width: 8px;
+            background-color: #9E9EA1;
+            display: inline-block;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .typing-indicator span:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+
+        .typing-indicator span:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+        
+        @keyframes bounce {
+            0%, 80%, 100% {
+                transform: scale(0);
+            }
+            40% {
+                transform: scale(1.0);
+            }
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center h-screen p-4">
+
+    <!-- API Key Modal / Settings -->
+    <div id="api-key-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 hidden">
+        <div class="glass-container w-full max-w-md p-6 rounded-2xl shadow-2xl text-white relative">
+             <button id="close-modal-button" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <h2 class="text-2xl font-bold mb-2 text-center">Settings</h2>
+            <p class="text-center text-gray-300 mb-6">Manage your Gemini API Key. Get one from Google AI Studio.</p>
+            <form id="api-key-form">
+                <label for="api-key-input" class="block text-sm font-medium text-gray-300 mb-2">Gemini API Key</label>
+                <input id="api-key-input" type="password" class="w-full px-4 py-3 rounded-lg bg-gray-900 bg-opacity-50 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 transition duration-300" placeholder="•••••••••••••••••••••••••••••••">
+                <div class="flex gap-4 mt-6">
+                    <button type="submit" class="flex-1 py-3 rounded-lg bg-purple-600 hover:bg-purple-700 font-bold transition duration-300">Save Key</button>
+                    <button type="button" id="remove-key-button" class="flex-1 py-3 rounded-lg bg-red-600 hover:bg-red-700 font-bold transition duration-300">Remove Key</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Chat UI -->
+    <div class="glass-container w-full max-w-4xl h-full flex flex-col rounded-2xl shadow-2xl overflow-hidden">
+        <header class="p-4 border-b border-gray-700 border-opacity-50 flex justify-between items-center">
+             <div class="flex items-center gap-2">
+                 <button id="clear-chat-button" class="text-gray-400 hover:text-white transition duration-300 p-2 rounded-full hover:bg-white/10" title="Clear Chat">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                 </button>
+                 <button id="summarize-button" class="text-gray-400 hover:text-white transition duration-300 p-2 rounded-full hover:bg-white/10" title="✨ Summarize Conversation">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                 </button>
+             </div>
+            <h1 class="text-xl font-bold text-white">Gemini Chat</h1>
+             <button id="settings-button" class="text-gray-400 hover:text-white transition duration-300 p-2 rounded-full hover:bg-white/10" title="Settings">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l-.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1 0-2l.15-.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+        </header>
+
+        <main id="chat-messages" class="flex-1 p-6 overflow-y-auto space-y-4">
+             <div class="flex items-start gap-4">
+                <div class="flex-shrink-0 w-10 h-10 rounded-full bg-purple-800 flex items-center justify-center font-bold text-white">
+                    AI
+                </div>
+                <div class="bg-gray-900 bg-opacity-50 rounded-lg p-4 max-w-xl">
+                    <p class="text-white">Hello! I'm your Gemini assistant. How can I help you today?</p>
+                </div>
+            </div>
+        </main>
+
+        <footer class="p-4 border-t border-gray-700 border-opacity-50">
+            <form id="chat-form" class="flex items-center gap-4">
+                <input id="message-input" type="text" placeholder="Type your message here..." class="flex-1 px-4 py-3 rounded-lg bg-gray-900 bg-opacity-50 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 transition duration-300">
+                <button type="submit" class="px-6 py-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed" id="send-button">
+                    Send
+                </button>
+            </form>
+        </footer>
+    </div>
+
+    <script>
+        const apiKeyModal = document.getElementById('api-key-modal');
+        const apiKeyForm = document.getElementById('api-key-form');
+        const apiKeyInput = document.getElementById('api-key-input');
+        const settingsButton = document.getElementById('settings-button');
+        const removeKeyButton = document.getElementById('remove-key-button');
+        const closeModalButton = document.getElementById('close-modal-button');
+        
+        const chatForm = document.getElementById('chat-form');
+        const messageInput = document.getElementById('message-input');
+        const chatMessages = document.getElementById('chat-messages');
+        const sendButton = document.getElementById('send-button');
+        const clearChatButton = document.getElementById('clear-chat-button');
+        const summarizeButton = document.getElementById('summarize-button');
+
+        let geminiApiKey = localStorage.getItem('geminiApiKey');
+        let chatHistory = [];
+
+        const initialWelcomeMessage = chatMessages.innerHTML;
+
+        // --- API Key Management ---
+        function openModal() {
+            apiKeyInput.value = geminiApiKey || '';
+            apiKeyModal.classList.remove('hidden');
+            apiKeyModal.classList.add('flex');
+        }
+
+        function closeModal() {
+            apiKeyModal.classList.add('hidden');
+            apiKeyModal.classList.remove('flex');
+        }
+        
+        function showNotification(message, isSuccess = true) {
+            const notification = document.createElement('div');
+            notification.textContent = message;
+            const bgColor = isSuccess ? 'bg-green-500' : 'bg-red-500';
+            notification.className = `fixed top-5 right-5 ${bgColor} text-white py-2 px-4 rounded-lg shadow-lg transition-opacity duration-300 opacity-0 z-50`;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.style.opacity = '1', 100);
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        function checkApiKey() {
+            if (!geminiApiKey) {
+                openModal();
+                messageInput.disabled = true;
+                sendButton.disabled = true;
+                messageInput.placeholder = "Please add your API key in settings.";
+            } else {
+                closeModal();
+                messageInput.disabled = false;
+                sendButton.disabled = false;
+                messageInput.placeholder = "Type your message here...";
+            }
+        }
+        
+        settingsButton.addEventListener('click', openModal);
+        closeModalButton.addEventListener('click', closeModal);
+        
+        removeKeyButton.addEventListener('click', () => {
+            localStorage.removeItem('geminiApiKey');
+            geminiApiKey = null;
+            apiKeyInput.value = '';
+            showNotification('API Key removed.', false);
+            checkApiKey();
+        });
+
+
+        apiKeyForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const key = apiKeyInput.value.trim();
+            if (key) {
+                geminiApiKey = key;
+                localStorage.setItem('geminiApiKey', key);
+                showNotification('API Key saved successfully!');
+                checkApiKey();
+            } else {
+                showNotification('Please enter a valid API Key.', false);
+            }
+        });
+
+        // --- Chat Functionality ---
+        chatForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const message = messageInput.value.trim();
+            if (message) {
+                addMessage('user', message);
+                getGeminiResponse(message);
+                messageInput.value = '';
+            }
+        });
+
+        function addMessage(sender, text, isSystem = false) {
+             if (isSystem) {
+                const systemMessageElement = document.createElement('div');
+                systemMessageElement.className = 'flex justify-center';
+                systemMessageElement.innerHTML = `
+                    <div class="p-3 rounded-lg bg-gray-800 bg-opacity-70 text-gray-300 text-sm max-w-2xl w-full border border-gray-700">
+                        ${text.replace(/\n/g, '<br>')}
+                    </div>
+                `;
+                chatMessages.appendChild(systemMessageElement);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                return;
+            }
+
+            const messageElement = document.createElement('div');
+            messageElement.className = `flex items-start gap-4 ${sender === 'user' ? 'justify-end' : ''}`;
+            
+            const avatar = `
+                <div class="flex-shrink-0 w-10 h-10 rounded-full ${sender === 'user' ? 'bg-blue-800' : 'bg-purple-800'} flex items-center justify-center font-bold text-white">
+                    ${sender === 'user' ? 'You' : 'AI'}
+                </div>
+            `;
+            
+            const messageBubble = document.createElement('div');
+            messageBubble.className = `rounded-lg p-4 max-w-xl ${sender === 'user' ? 'bg-blue-900 bg-opacity-50' : 'bg-gray-900 bg-opacity-50'}`;
+            
+            if (text === 'loading') {
+                 messageBubble.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
+            } else {
+                messageBubble.innerHTML = `<p class="text-white">${text.replace(/\n/g, '<br>')}</p>`;
+            }
+            
+            if (sender === 'user') {
+                messageElement.innerHTML = messageBubble.outerHTML + avatar;
+            } else {
+                messageElement.innerHTML = avatar + messageBubble.outerHTML;
+            }
+            
+            chatMessages.appendChild(messageElement);
+            
+            if (sender === 'bot' && text !== 'loading') {
+                const suggestionsContainerWrapper = document.createElement('div');
+                suggestionsContainerWrapper.className = 'flex justify-start pl-14 -mt-2 mb-4';
+                const suggestionsContainer = document.createElement('div');
+                suggestionsContainer.className = 'flex items-center gap-2 flex-wrap';
+                
+                const suggestButton = document.createElement('button');
+                suggestButton.innerHTML = `✨ Suggest Replies`;
+                suggestButton.className = 'text-xs py-1 px-2 rounded-full bg-purple-600 hover:bg-purple-700 text-white transition-all';
+                suggestButton.onclick = () => getReplySuggestions(suggestionsContainer);
+                suggestionsContainer.appendChild(suggestButton);
+                
+                suggestionsContainerWrapper.appendChild(suggestionsContainer);
+                chatMessages.appendChild(suggestionsContainerWrapper);
+            }
+
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            return messageElement;
+        }
+        
+        clearChatButton.addEventListener('click', () => {
+            chatHistory = [];
+            chatMessages.innerHTML = initialWelcomeMessage;
+            showNotification('Conversation cleared.');
+        });
+        
+        summarizeButton.addEventListener('click', async () => {
+            if (chatHistory.length < 2) {
+                showNotification('Not enough conversation to summarize.', false);
+                return;
+            }
+            
+            const originalIcon = summarizeButton.innerHTML;
+            summarizeButton.innerHTML = `<svg class="spinner" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`;
+            summarizeButton.disabled = true;
+
+            const conversationText = chatHistory.map(turn => `${turn.role === 'user' ? 'User' : 'Assistant'}: ${turn.parts[0].text}`).join('\n');
+            const prompt = `Please provide a concise, one-paragraph summary of the following conversation:\n\n---\n${conversationText}\n---`;
+            
+            try {
+                const summaryText = await callGemini(prompt);
+                addMessage(null, `✨ **Conversation Summary:**\n${summaryText}`, true);
+            } catch (error) {
+                showNotification('Could not generate summary.', false);
+            } finally {
+                summarizeButton.innerHTML = originalIcon;
+                summarizeButton.disabled = false;
+            }
+        });
+        
+        async function getReplySuggestions(container) {
+            container.innerHTML = `<div class="w-4 h-4 border-2 border-dashed rounded-full animate-spin border-white"></div>`;
+
+            const prompt = `Based on the conversation so far, suggest three distinct and short replies for the user. Your response must be a valid JSON array of strings, and nothing else. For example: ["Tell me more!", "That's interesting.", "Okay, thanks!"]\n\nCONVERSATION:\n${chatHistory.map(t => `${t.role}: ${t.parts[0].text}`).join('\n')}`;
+
+            try {
+                const jsonString = await callGemini(prompt, true);
+                const suggestions = JSON.parse(jsonString);
+
+                container.innerHTML = ''; 
+                if (Array.isArray(suggestions) && suggestions.length > 0) {
+                    suggestions.slice(0, 3).forEach(suggestion => {
+                        const button = document.createElement('button');
+                        button.textContent = suggestion;
+                        button.className = 'text-xs py-1 px-3 rounded-full bg-gray-700 hover:bg-gray-600 text-white transition-all';
+                        button.onclick = () => {
+                            messageInput.value = suggestion;
+                            messageInput.focus();
+                        };
+                        container.appendChild(button);
+                    });
+                } else {
+                     throw new Error("Invalid suggestions format.");
+                }
+            } catch (error) {
+                console.error('Error getting suggestions:', error);
+                container.innerHTML = `<p class="text-xs text-red-400">Failed to get suggestions.</p>`;
+            }
+        }
+        
+        async function callGemini(prompt, isJsonOutput = false) {
+             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${geminiApiKey}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+            };
+
+            if (isJsonOutput) {
+                payload.generationConfig = { responseMimeType: "application/json" };
+            }
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error.message || `API request failed with status ${response.status}`);
+            }
+
+            const result = await response.json();
+            const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (text) {
+                return text;
+            } else {
+                throw new Error("Received an empty or invalid response from the API.");
+            }
+        }
+
+
+        async function getGeminiResponse(prompt) {
+            sendButton.disabled = true;
+            const loadingIndicator = addMessage('bot', 'loading');
+            
+            chatHistory.push({ role: 'user', parts: [{ text: prompt }] });
+            
+            try {
+                const botResponseText = await callGemini(chatHistory.map(c => c.parts[0].text).join("\n"));
+                loadingIndicator.remove();
+                addMessage('bot', botResponseText);
+                chatHistory.push({ role: 'model', parts: [{ text: botResponseText }] });
+
+            } catch (error) {
+                console.error('Error calling Gemini API:', error);
+                loadingIndicator.remove();
+                addMessage('bot', `Sorry, something went wrong: ${error.message}`);
+            } finally {
+                sendButton.disabled = false;
+                messageInput.focus();
+            }
+        }
+        
+        // Initial check when the page loads
+        document.addEventListener('DOMContentLoaded', checkApiKey);
+    </script>
+</body>
+</html>
+
